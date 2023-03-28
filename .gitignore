@@ -1,0 +1,7 @@
+IQA_Dataset/
+competitors/
+.idea/
+__pycache__/
+.ipynb_checkpoints/
+logs/
+wandb/
