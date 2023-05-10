@@ -2,14 +2,15 @@ from types import SimpleNamespace
 
 
 config_dict = {
-    'base_path': "/home/itaian/data/results/SWD/IQA",
+    # sweep
+    'image_path': 'error',
+    'degradation': 'gauss_blur',
+    'severity': 0,
+    'results_path': './results/attempt_base',
 
     # image pyramid
-    'image_id': 0,
-    'degradation': 'reference',
-    'severity': None,
-    'dim_max_size': 1024,
-    'num_scales': 9,
+    'hr_dim_size': 1024,
+    'min_dim_size': 40,
 
     # swd
     'patch_size': 5,
@@ -18,10 +19,9 @@ config_dict = {
     'normalized': False,
 
     # kl
-    'eps': 1e-4,
+    'kl_method': "mean",  # mean, ration
 
-    'hr_noise': True,
-    'lr_noise': True,
+    'debug': False,
 }
 
 default_config = SimpleNamespace(**config_dict)

@@ -2,8 +2,10 @@ import torch
 import skimage as sk
 from PIL import Image
 from io import BytesIO
+
 from images import pt2np, np2pt
-from .utils import pt2im, im2pt
+
+from IQA.utils import pt2im, im2pt
 
 
 def glass_blur(image, sigma=10, max_delta=10, iterations=1):
@@ -39,24 +41,31 @@ def jpeg_compress(image, quality=75):
     return image
 
 
-def degrade(reference, degradation, severity=None):
-    if degradation == "reference":
+def degrade(reference, degradation, severity):
+    if severity == 0:
         output = reference
-    elif degradation == "gauss_blur":
-        sigma = [3, 6, 9, 12, 15, 18, 21][severity - 1]
-        output = np2pt(sk.filters.gaussian(pt2np(reference), sigma=sigma, channel_axis=-1))
-    elif degradation == "glass_blur":
-        sigma, max_delta, iterations = [(2, 1, 2), (2, 2, 3), (3, 3, 4), (3, 4, 5), (4, 5, 5), (4, 6, 5), (5, 7, 5)][severity - 1]
-        output = glass_blur(reference, sigma=sigma, max_delta=max_delta, iterations=iterations)
-    elif degradation == "impulse_noise":
-        amount = [.03, .06, .10, 0.15, 0.20, 0.25, 0.30][severity - 1]
-        output = np2pt(sk.util.random_noise(pt2np(reference), mode='s&p', amount=amount))
-    elif degradation == "jpeg":
-        quality = [95, 50, 25, 15, 10, 7, 4][severity - 1]
-        output = jpeg_compress(reference, quality=quality)
-    elif degradation == "white_noise":
-        std = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35][severity - 1]
-        output = (reference + torch.normal(mean=torch.zeros_like(reference), std=std))
+
     else:
-        raise NotImplementedError
-    return output.clip(0, 1).to(device=reference.device)
+        if degradation == "reference":
+            output = reference
+        elif degradation == "gauss_blur":
+            sigma = [3, 6, 9, 12, 15, 18, 21][severity - 1]
+            output = np2pt(sk.filters.gaussian(pt2np(reference), sigma=sigma, channel_axis=-1))
+        elif degradation == "glass_blur":
+            sigma, max_delta, iterations = [(2, 1, 2), (2, 2, 3), (3, 3, 4), (3, 4, 5), (4, 5, 5), (4, 6, 5), (5, 7, 5)][severity - 1]
+            output = glass_blur(reference, sigma=sigma, max_delta=max_delta, iterations=iterations)
+        elif degradation == "impulse_noise":
+            amount = [.03, .06, .10, 0.15, 0.20, 0.25, 0.30][severity - 1]
+            output = np2pt(sk.util.random_noise(pt2np(reference), mode='s&p', amount=amount))
+        elif degradation == "jpeg":
+            quality = [95, 50, 25, 15, 10, 7, 4][severity - 1]
+            output = jpeg_compress(reference, quality=quality)
+        elif degradation == "white_noise":
+            std = [0.07, 0.15, 0.22, 0.29, 0.36, 0.43, 0.50][severity - 1]
+            output = (reference + torch.normal(mean=torch.zeros_like(reference), std=std))
+        else:
+            raise NotImplementedError
+
+    output = (output * 255).round() / 255
+    output = output.clip(0, 1).to(device=reference.device)
+    return output

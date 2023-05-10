@@ -3,6 +3,8 @@ import torch.nn.functional as F
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
+import portalocker
+import os
 import pickle
 
 from images import pt2np, np2pt
@@ -81,3 +83,56 @@ def kl_divergence(p, q):
     numel = p.numel()
     kl_div = F.kl_div(q.log(), p, reduction='batchmean') * numel
     return kl_div
+
+
+def old_kl_divergence(p, q):
+    assert (type(p) is torch.Tensor) and (type(q) is torch.Tensor)
+    assert (p.ndim == 1) and (q.ndim == 1) and (p.numel() == q.numel())
+    assert (torch.isclose(p.sum(), torch.tensor(1.))) and (torch.isclose(q.sum(), torch.tensor(1.)))
+    eps = torch.tensor(1e-4)
+    p, q = torch.maximum(p, eps), torch.maximum(q, eps)
+    # compute kl-div(p|q)
+    numel = p.numel()
+    kl_div = F.kl_div(q.log(), p, reduction='batchmean') * numel
+    return kl_div.item()
+
+
+def kld_gauss(u1, s1, u2, s2):
+  # general KL two Gaussians
+  # u2, s2 often N(0,1)
+  # https://stats.stackexchange.com/questions/7440/ +
+  # kl-divergence-between-two-univariate-gaussians
+  # log(s2/s1) + [( s1^2 + (u1-u2)^2 ) / 2*s2^2] - 0.5
+  v1 = s1 * s1
+  v2 = s2 * s2
+  a = np.log(s2/s1)
+  num = v1 + (u1 - u2)**2
+  den = 2 * v2
+  b = num / den
+  return a + b - 0.5
+
+
+# multi-process locking
+
+def read_pickle(file_path):
+    with open(file_path, 'rb') as f:
+        data = pickle.load(f)
+    return data
+
+
+def write_pickle(file_path, data):
+    with open(file_path, 'wb') as f:
+        pickle.dump(data, f)
+
+
+def append_to_results(results_path, key, value):
+    with portalocker.Lock('.lock', timeout=600) as lock_handle:
+        # read
+        if os.path.exists(results_path):
+            results = read_pickle(file_path=results_path)
+        else:
+            results = dict()
+        # append
+        results[key] = value
+        # write
+        write_pickle(file_path=results_path, data=results)

@@ -1,7 +1,10 @@
 IQA_Dataset/
 competitors/
+projections/
 .idea/
 __pycache__/
 .ipynb_checkpoints/
 logs/
 wandb/
+.lock
+
