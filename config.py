@@ -3,10 +3,11 @@ from types import SimpleNamespace
 
 config_dict = {
     # sweep
-    'image_path': 'error',
+    'results_path': './results/Image_1_pristine',
+
+    'image_path': './images/DIV2K_16/0001.png',
     'degradation': 'gauss_blur',
     'severity': 0,
-    'results_path': './results/attempt_base',
 
     # image pyramid
     'hr_dim_size': 1024,
@@ -21,7 +22,7 @@ config_dict = {
     # kl
     'kl_method': "mean",  # mean, ration
 
-    'debug': False,
+    'debug': True,
 }
 
 default_config = SimpleNamespace(**config_dict)
