@@ -10,7 +10,7 @@ from IQA.degrade import degrade
 from IQA.pyramid import pyramid_shapes_scale_sqrt_2
 from IQA.swd import get_projection, slow_best_projection_weights
 from IQA.config import default_config
-from IQA.utils import write_pickle, kl_divergence, old_kl_divergence
+from IQA.utils import write_pickle, kl_divergence, old_kl_divergence, high_grad_mask
 
 
 def our_score(image, config):
@@ -31,7 +31,10 @@ def our_score(image, config):
     for hr_idx in hr_indices:
         hr_image = image_pyramid[hr_idx]
         lr_image = image_pyramid[hr_idx + 2]
-        weight_map = slow_best_projection_weights(hr_image=hr_image, lr_image=lr_image, proj=proj, num_noise=config.num_noise, normalized=config.normalized)
+        hr_image_mask = high_grad_mask(image=hr_image, patch_size=config.patch_size, grad_threshold=config.grad_threshold)
+        lr_image_mask = high_grad_mask(image=lr_image, patch_size=config.patch_size, grad_threshold=config.grad_threshold)
+        weight_map = slow_best_projection_weights(hr_image=hr_image, lr_image=lr_image, proj=proj, num_noise=config.num_noise,
+                                                  hr_image_mask=hr_image_mask, lr_image_mask=lr_image_mask, normalized=config.normalized)
         weight_map = weight_map[..., edge:-edge, edge:-edge]
         weight_maps_pyramid.append(weight_map)
     print("Weight Maps Pyramid Done.")
@@ -83,7 +86,7 @@ def main(config=default_config):
         results_dict = our_score(image=degraded_image, config=config)
 
         # save result
-        input_image_name = os.path.basename(config.image_path).split(".")[0]
+        input_image_name = '.'.join(os.path.basename(config.image_path).split(".")[:-1])
         output_image_name = f"{config.degradation}--{input_image_name}--{config.severity}.pkl"
         output_image_path = os.path.join(config.results_path, "pkl", output_image_name)
         os.makedirs(os.path.dirname(output_image_path), exist_ok=True)

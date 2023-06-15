@@ -68,11 +68,13 @@ def add_noise(tensor, std=0.01, clip=True):
     return noisy_tensor
 
 
-def best_projection_weights(hr_image, lr_image, proj, normalized=False):
+def best_projection_weights(hr_image, lr_image, proj, hr_image_mask=None, lr_image_mask=None, normalized=False):
     assert (proj.size(1) == 3) and (proj.size(2) == proj.size(3))
     num_proj = proj.size(0)
     patch_size = proj.size(2)
     assert patch_size % 2 == 1
+    mask = True if hr_image_mask is not None else False
+    assert not (mask and lr_image_mask is None)
 
     # Project patches
     if not normalized:
@@ -86,6 +88,13 @@ def best_projection_weights(hr_image, lr_image, proj, normalized=False):
         proj_hr = torch.mm(proj.flatten(start_dim=1), hr_patches)
         proj_lr = torch.mm(proj.flatten(start_dim=1), lr_patches)
 
+    # Mask out patches
+    if mask:
+        hr_mask = hr_image_mask.flatten()
+        lr_mask = lr_image_mask.flatten()
+        proj_hr = proj_hr.t()[hr_mask].t()
+        proj_lr = proj_lr.t()[lr_mask].t()
+
     # Find NN indices (hr -> lr)
     proj_lr_sorted, proj_lr_indices = proj_lr.sort(dim=1)
     min_val = min(proj_hr.min(), proj_lr.min()) - 1
@@ -94,12 +103,17 @@ def best_projection_weights(hr_image, lr_image, proj, normalized=False):
                          (proj_lr_sorted[:, 1:] + proj_lr_sorted[:, :-1]) / 2,
                          max_val * torch.ones(num_proj, 1, device=proj_lr_sorted.device)], dim=1)
     weights = torch.stack([torch.as_tensor(cp.histogram(x=cp.asarray(proj_hr[i]), bins=cp.asarray(lr_bins[i]))[0], device='cuda') for i in range(num_proj)])
-    assert (weights.sum(dim=1) == proj_hr.size(1)).all()
+    if mask:
+        assert (weights.sum(dim=1) == proj_hr.size(1)).all()
 
     # Reshape weights as image for visualization
     _, _, h, w = lr_image.shape
     h_out, w_out = (h - (patch_size - 1)), (w - (patch_size - 1))
     weights_image = torch.stack([weights[i].gather(0, proj_lr_indices[i].argsort(0)) for i in range(num_proj)])
+    if mask:
+        weights_image_with_mask = torch.nan * torch.empty(num_proj, h_out*w_out, device=weights_image.device)
+        weights_image_with_mask.t()[lr_mask] = weights_image.float().t()
+        weights_image = weights_image_with_mask
     weights_image = weights_image.reshape(num_proj, 1, h_out, w_out)
     weights_image = F.pad(input=weights_image, pad=[patch_size // 2] * 4, value=0)
 
@@ -108,14 +122,15 @@ def best_projection_weights(hr_image, lr_image, proj, normalized=False):
     return weights_image
 
 
-def slow_best_projection_weights(hr_image, lr_image, proj, num_noise=256, normalized=False):
+def slow_best_projection_weights(hr_image, lr_image, proj, num_noise=256, hr_image_mask=None, lr_image_mask=None, normalized=False):
     h, w = lr_image.shape[-2:]
     num_proj = proj.size(0)
     weights = torch.zeros(num_proj, 1, h, w)
 
     # average over noises
     for _ in tqdm(range(num_noise)):
-        weights += best_projection_weights(hr_image=add_noise(hr_image), lr_image=add_noise(lr_image), proj=proj, normalized=normalized).float().cpu()
+        weights += best_projection_weights(hr_image=add_noise(hr_image), lr_image=add_noise(lr_image), proj=proj,
+                                           hr_image_mask=hr_image_mask, lr_image_mask=lr_image_mask, normalized=normalized).float().cpu()
     weights = weights / num_noise
 
     # average over projections

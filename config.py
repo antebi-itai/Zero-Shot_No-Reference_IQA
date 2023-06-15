@@ -3,11 +3,12 @@ from types import SimpleNamespace
 
 config_dict = {
     # sweep
-    'results_path': './results/Image_1_pristine',
+    'results_path': './results/BackToBase',
 
-    'image_path': './images/DIV2K_16/0001.png',
-    'degradation': 'gauss_blur',
-    'severity': 0,
+    'image_path': './images/DIV2K_16/0012.png',
+    'degradation': 'white_noise',
+    'severity': 5,
+    'grad_threshold': 0.120,
 
     # image pyramid
     'hr_dim_size': 1024,

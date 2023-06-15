@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import portalocker
 import os
 import pickle
+import kornia
 
 from images import pt2np, np2pt
 
@@ -34,6 +35,15 @@ def load_pickle(path):
     with open(path, 'rb') as handle:
         result = pickle.load(handle)
     return result
+
+
+def high_grad_mask(image, patch_size=5, grad_threshold=1/1000):
+    dx, dy = kornia.filters.spatial_gradient(image).permute([2, 0, 1, 3, 4])
+    grad_map = (dx.pow(2) + dy.pow(2)).sqrt().mean(dim=1, keepdim=True)
+    uniform_kernel = torch.ones(1, 1, patch_size, patch_size, device=image.device) / (patch_size*patch_size)
+    grad_map_blurred = torch.conv2d(input=grad_map, weight=uniform_kernel)
+    mask = grad_map_blurred > grad_threshold
+    return mask
 
 
 # Histograms
