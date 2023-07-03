@@ -54,6 +54,31 @@ def plot_hist(hist, start, end, label=None, color=None):
     plt.hist(bins[:-1], bins=bins, weights=hist, histtype='step', label=label, color=color)
 
 
+def warp_hist(hist, indices):
+    hist_cumsum = torch.cumsum(hist, dim=0)
+    hist_cumsum_slopes = torch.cat([hist[1:], torch.tensor([0])])
+    int_indices = indices.floor().long()
+    dec_indices = indices - int_indices
+    hist_cumsum_sampled = hist_cumsum[int_indices] + dec_indices * hist_cumsum_slopes[int_indices]
+    hist_sampled = torch.cat([hist_cumsum_sampled[:1], hist_cumsum_sampled[1:] - hist_cumsum_sampled[:-1]])
+    return hist_sampled
+
+
+def get_indices(hist_a, hist_b):
+    histograms = torch.stack([hist_a, hist_b], dim=0)
+    histograms_cumsum = torch.cumsum(histograms, dim=-1)
+    indices = torch.searchsorted(histograms_cumsum[0], histograms_cumsum[1])
+
+    # fix residual indices
+    residual = histograms_cumsum[0][indices] - histograms_cumsum[1]
+    hist_cumsum_slopes = torch.cat([hist_a[indices][1:], torch.tensor([1])])
+    residual_indices = torch.where(hist_cumsum_slopes == 0, torch.tensor(0, dtype=torch.float32),
+                                   residual / hist_cumsum_slopes)
+    final_indices = indices.float() - residual_indices
+
+    return final_indices
+
+
 # KL-divergence
 
 
