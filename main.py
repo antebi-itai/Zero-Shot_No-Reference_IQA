@@ -7,7 +7,7 @@ from images import imread
 from ResizeRight.resize_right import resize
 
 from IQA.degrade import degrade
-from IQA.pyramid import pyramid_shapes_scale_sqrt_2
+from IQA.pyramid import create_image_pyramids
 from IQA.swd import get_projection, slow_best_projection_weights
 from IQA.config import default_config
 from IQA.utils import write_pickle, kl_divergence, old_kl_divergence
@@ -15,11 +15,7 @@ from IQA.utils import write_pickle, kl_divergence, old_kl_divergence
 
 def our_score(image, config):
     # image  ->  image_pyramid
-    h, w = image.shape[2:]
-    image_shapes = pyramid_shapes_scale_sqrt_2(h=h, w=w, patch_size=config.patch_size, min_dim_size=config.min_dim_size)
-    image_pyramid = []
-    for image_shape in image_shapes:
-        image_pyramid.append(resize(image, out_shape=image_shape, pad_mode='reflect').clip(0, 1))
+    image_pyramid, image_pyramid_with_borders, full_size_image_pyramid = create_image_pyramids(image=image, patch_size=config.patch_size, min_dim_size=config.min_dim_size)
     print("Image Pyramid Done.")
 
     # image_pyramid  ->  weight_maps_pyramid
@@ -27,10 +23,10 @@ def our_score(image, config):
     weight_maps_pyramid = []
     edge = config.patch_size // 2
     num_scales = len(image_pyramid)
-    hr_indices = [0, (num_scales - 2) - 1] if not config.debug else [i for i in range(num_scales - 2)]
+    hr_indices = [0, (num_scales - 1) - 1] if not config.debug else [i for i in range(num_scales - 1)]
     for hr_idx in hr_indices:
-        hr_image = image_pyramid[hr_idx]
-        lr_image = image_pyramid[hr_idx + 2]
+        hr_image = image_pyramid_with_borders[hr_idx]
+        lr_image = image_pyramid_with_borders[hr_idx + 1]
         weight_map = slow_best_projection_weights(hr_image=hr_image, lr_image=lr_image, proj=proj, num_noise=config.num_noise, normalized=config.normalized)
         weight_map = weight_map[..., edge:-edge, edge:-edge]
         weight_maps_pyramid.append(weight_map)
@@ -58,6 +54,8 @@ def our_score(image, config):
     print("KL-div Done.")
 
     results_dict = {'image_pyramid': image_pyramid,
+                    'image_pyramid_with_borders': image_pyramid_with_borders,
+                    'full_size_image_pyramid': full_size_image_pyramid,
                     'weight_maps_pyramid': weight_maps_pyramid,
                     'histogram_pyramid': histogram_pyramid,
                     'kldivs': kldivs,

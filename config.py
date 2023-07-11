@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 config_dict = {
     # sweep
-    'results_path': './results/Image_1_pristine',
+    'results_path': './results/NewImagePyramid',
 
     'image_path': './images/DIV2K_16/0001.png',
     'degradation': 'gauss_blur',
