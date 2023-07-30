@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import portalocker
 import os
 import pickle
+import glob
+from scipy.stats import spearmanr, pearsonr
 
 from images import pt2np, np2pt
 
@@ -161,3 +163,55 @@ def append_to_results(results_path, key, value):
         results[key] = value
         # write
         write_pickle(file_path=results_path, data=results)
+
+
+def plot_results(images_dir="./images/DIV2K_16/*", result_dir="./results/TrimEdgesPyramid/",
+                 degradations=['gauss_blur', 'white_noise'], severities=[i for i in range(8)],
+                 score_name='score_mean'):
+    image_names = [os.path.basename(image_path).split(".")[0] for image_path in sorted(glob.glob(images_dir))]
+
+    for degradation in degradations:
+        # read results data
+        scores = torch.zeros(len(image_names), len(severities))
+        for image_id, image_name in enumerate(image_names):
+            for severity in severities:
+                scores[image_id, severity] = \
+                    read_pickle(f"{result_dir}/pkl/{degradation}--{image_id + 1:04d}--{severity}.pkl")[score_name]
+
+        # mean-images graph
+        score_mean = scores.mean(dim=0)
+        score_var = scores.var(dim=0)
+        plt.figure()
+        plt.errorbar(severities, score_mean, score_var)
+        plt.xlabel('severity')
+        plt.ylabel('score')
+        plt.title(f"{degradation}_all_images")
+        out_path = f"{result_dir}/graphs/{degradation}_{score_name}_all_images.png"
+        os.makedirs(name=os.path.dirname(out_path), exist_ok=True)
+        plt.savefig(fname=out_path, facecolor="white")
+        plt.clf()
+
+
+def plot_dataset_results(result_dir, degradations=['gauss_blur', 'white_noise']):
+    # scores
+    gt_scores, pred_scores = [], []
+    for result_name in sorted(os.listdir(f"{result_dir}/pkl/")):
+        gt_score, image_name, image_degradation, _ = result_name.split('__')
+        if image_degradation in degradations:
+            pred_score = read_pickle(f"{result_dir}/pkl/{result_name}")['score'].cpu()
+            gt_scores.append(gt_score)
+            pred_scores.append(pred_score)
+    # metrics
+    srocc = spearmanr(gt_scores, pred_scores).correlation
+    plcc = pearsonr(gt_scores, pred_scores)[0]
+    # plot
+    plt.figure()
+    plt.scatter(gt_scores, pred_scores, s=1)
+    plt.title(f"{'_and_'.join(degradations)}\nSROCC/PLCC = {round(srocc, 3)}/{round(plcc, 3)}")
+    plt.xlabel("gt score")
+    plt.ylabel(f"pred score")
+    # save plot
+    result_path = f"{result_dir}/dataset_graphs/{'_and_'.join(degradations)}.png"
+    os.makedirs(os.path.dirname(result_path), exist_ok=True)
+    plt.savefig(result_path)
+    plt.close()

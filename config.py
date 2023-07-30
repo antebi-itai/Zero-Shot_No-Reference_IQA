@@ -3,14 +3,16 @@ from types import SimpleNamespace
 
 config_dict = {
     # sweep
-    'results_path': './results/NewImagePyramid',
+    'results_path': './results/2023_07_16',
 
-    'image_path': './images/DIV2K_16/0001.png',
+    'dataset': 'div2k_100',
+    'image_id': 0,
     'degradation': 'gauss_blur',
     'severity': 0,
+    'post_degradation': 'original',
 
     # image pyramid
-    'hr_dim_size': 1024,
+    'hr_dim_size': 1024,  # 1024, 500
     'min_dim_size': 40,
 
     # swd
@@ -19,10 +21,7 @@ config_dict = {
     'num_noise': 64,
     'normalized': False,
 
-    # kl
-    'kl_method': "mean",  # mean, ration
-
-    'debug': True,
+    'debug': False,
 }
 
 default_config = SimpleNamespace(**config_dict)

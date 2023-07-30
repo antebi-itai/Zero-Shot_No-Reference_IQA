@@ -49,7 +49,7 @@ def degrade(reference, degradation, severity):
         if degradation == "reference":
             output = reference
         elif degradation == "gauss_blur":
-            sigma = [3, 6, 9, 12, 15, 18, 21][severity - 1]
+            sigma = 3 * severity
             output = np2pt(sk.filters.gaussian(pt2np(reference), sigma=sigma, channel_axis=-1))
         elif degradation == "glass_blur":
             sigma, max_delta, iterations = [(2, 1, 2), (2, 2, 3), (3, 3, 4), (3, 4, 5), (4, 5, 5), (4, 6, 5), (5, 7, 5)][severity - 1]
@@ -61,7 +61,7 @@ def degrade(reference, degradation, severity):
             quality = [95, 50, 25, 15, 10, 7, 4][severity - 1]
             output = jpeg_compress(reference, quality=quality)
         elif degradation == "white_noise":
-            std = [0.07, 0.15, 0.22, 0.29, 0.36, 0.43, 0.50][severity - 1]
+            std = 0.07 * severity
             output = (reference + torch.normal(mean=torch.zeros_like(reference), std=std))
         else:
             raise NotImplementedError
