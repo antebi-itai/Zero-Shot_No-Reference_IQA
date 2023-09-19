@@ -1,16 +1,13 @@
 import os
 import torch
 import wandb
-from pathlib import Path
-
 from images import imread
 from ResizeRight.resize_right import resize
-
-from IQA.degrade import degrade, shift_half
-from IQA.pyramid import create_image_pyramids
-from IQA.swd import get_projection, slow_best_projection_weights
 from IQA.config import default_config
-from IQA.utils import write_pickle, kl_divergence, old_kl_divergence
+from IQA.degrade import degrade
+from IQA.pyramid import create_image_pyramids
+from IQA.swd import get_projection, stochastic_best_projection_weights
+from IQA.utils import write_pickle, kl_divergence
 
 
 def our_score(image, config):
@@ -27,7 +24,7 @@ def our_score(image, config):
     for hr_idx in hr_indices:
         hr_image = image_pyramid_with_borders[hr_idx]
         lr_image = image_pyramid_with_borders[hr_idx + 2]
-        weight_map = slow_best_projection_weights(hr_image=hr_image, lr_image=lr_image, proj=proj, num_noise=config.num_noise, normalized=config.normalized)
+        weight_map = stochastic_best_projection_weights(hr_image=hr_image, lr_image=lr_image, proj=proj, num_noise=config.num_noise, normalized=config.normalized)
         weight_map = weight_map[..., edge:-edge, edge:-edge]
         weight_maps_pyramid.append(weight_map)
     print("Weight Maps Pyramid Done.")
@@ -35,16 +32,16 @@ def our_score(image, config):
     # weight_maps_pyramid  ->  histogram_pyramid
     histogram_pyramid = []
     for weight_map in weight_maps_pyramid:
-        patch_counts = weight_map.flatten().clip(2, 8)
-        hist_vals = torch.histc(patch_counts.cpu(), bins=1000, min=2, max=8).cuda()
+        patch_counts = weight_map.flatten().clip(config.hist_start, config.hist_end)
+        hist_vals = torch.histc(patch_counts.cpu(), bins=config.bins, min=config.hist_start, max=config.hist_end).cuda()
         hist_vals /= hist_vals.sum()
         histogram_pyramid.append(hist_vals)
     histogram_pyramid = torch.stack(histogram_pyramid)
     print("Histograms Pyramid Done.")
 
     # histogram_pyramid  ->  score
-    kldivs = torch.tensor([old_kl_divergence(histogram_pyramid[0], histogram_pyramid[-1]),
-                           old_kl_divergence(histogram_pyramid[-1], histogram_pyramid[0])])
+    kldivs = torch.tensor([kl_divergence(histogram_pyramid[0], histogram_pyramid[-1]),
+                           kl_divergence(histogram_pyramid[-1], histogram_pyramid[0])])
     print("KL-div Done.")
 
     # result
@@ -76,22 +73,12 @@ def main_our_images(config=default_config):
         else:
             hr_image = original_image
         degraded_image = degrade(reference=hr_image, degradation=config.degradation, severity=config.severity)
-        if config.post_degradation == 'original':
-            pass
-        elif config.post_degradation == 'blur_0.4':
-            degraded_image = degrade(reference=degraded_image, degradation='gauss_blur', severity=0.4)
-        elif config.post_degradation == 'noise_0.4':
-            degraded_image = degrade(reference=degraded_image, degradation='white_noise', severity=0.4)
-        else:
-            raise NotImplementedError()
-
-        degraded_image = (degraded_image * 255).round() / 255
 
         # run our algorithm
         results_dict = our_score(image=degraded_image, config=config)
 
         # save result
-        output_image_name = f"DATASET_{config.dataset}_IMAGE_{config.image_id:04d}_DEGRADATION_{config.degradation}_SEVERITY_{config.severity}_POST_DEGRADATION_{config.post_degradation}.pkl"
+        output_image_name = f"DATASET_{config.dataset}_IMAGE_{config.image_id:04d}_DEGRADATION_{config.degradation}_SEVERITY_{config.severity}.pkl"
         output_image_path = os.path.join(config.results_path, "pkl", output_image_name)
         os.makedirs(os.path.dirname(output_image_path), exist_ok=True)
         write_pickle(file_path=output_image_path, data=results_dict)

@@ -2,9 +2,7 @@ import torch
 import skimage as sk
 from PIL import Image
 from io import BytesIO
-
 from images import pt2np, np2pt
-
 from IQA.utils import pt2im, im2pt
 
 
